@@ -1,0 +1,293 @@
+#!/bin/bash
+
+###########################################
+# Help for GetFC                          #
+###########################################
+
+display_help() {
+    echo "                                                   "
+    echo " This is a simple bash script that automatically   "
+    echo " creates finding charts from PS1 images.           "
+    echo "                                                   "
+    echo " GetFC -- Version 0.0 -- EPFarina                  "
+    echo "                                                   "
+    echo " Options:                                          "
+    echo "                                                   "
+    echo " -h, --help      You know this                     "
+    echo " -i, --infile    File Containing RA and Dec        "
+    echo " -f, --filter    Select the filter for the FC      "
+    echo " -o, --offset    Select if you need an offset star "
+    echo " -m, --magstar   R-band limit magnitude of the     "
+    echo "                 offset star                       "
+    echo "                                                   "
+    echo " The file containing RA and Dec should contain 3   "
+    echo " columns (ObjectName RA_deg DEC_deg in the         "
+    echo " following format:                                 "
+    echo "                                                   "
+    echo " ------------------------------------------------- "
+    echo " PSO014p37   14.43529159 37.92128852               "
+    echo " PSO112p44  112.74595010 44.75898989               "
+    echo "                                                   "
+    echo " ------------------------------------------------- "
+    echo "                                                   "
+    exit 1
+}
+
+###########################################
+# Clean Folder                            #
+###########################################
+clean_folder() {
+    rm -fr ps1filenames*
+    rm -fr rings.*
+    rm -fr wget-log
+    rm -fr radec_stars.txt
+    rm -fr _temp?
+    rm -fr logfile
+    rm -fr offsets.txt
+}
+
+
+###########################################
+# Assign defafaul value for the variables #
+###########################################
+
+: ${INFILE:="radec.txt"}
+: ${FILTER:="z"}
+: ${OFFSET:="0"}
+: ${MAGSTA:="17.0"}
+
+###########################################
+# Control options                         #
+###########################################
+
+while :
+do
+    case "$1" in
+      -i | --infile)
+          if [ $# -ne 0 ]; then
+            INFILE="$2"
+          fi
+          shift 2
+          ;;
+      -f | --filter)
+          if [ $# -ne 0 ]; then
+            FILTER="$2"
+          fi
+          shift 2
+          ;;
+      -o | --offset)
+          OFFSET="1"
+          shift
+          ;;
+      -m | --magstar)
+          if [ $# -ne 0 ]; then
+            MAGSTA="$2"
+          fi
+          shift 2
+          ;;
+      -h | --help)
+          display_help
+          exit 0
+          ;;
+     --) # End of all options
+          shift
+          break
+          ;;
+      -*)
+          echo "                                                   "
+          echo "Error: Unknown option: $1                          " >&2
+          echo " Options are:                                      "
+          echo " -i, --infile    File Containing RA and Dec        "
+          echo " -f, --filter    Select the filter for the FC      "
+          echo " -o, --offset    Select if you need an offset star "
+          echo " -m, --magstar   R-band limit magnitude of the     "
+          echo "                                                   "
+          exit 1 
+          ;;
+      *)  # No more options
+          break
+          ;;
+    esac
+done
+
+clean_folder
+
+echo "                                                   "
+echo " GetFc:                                            "
+echo " Creating finding chart in $FILTER band from the   "
+echo " input file $INFILE                                "
+echo "                                                   "
+
+while read MASTER MASTER_RA MASTER_DEC
+    do
+        echo "                                                   "
+        echo " OBJECT: $MASTER                                   "
+        echo "                                                   "
+        echo "  - Query to the PS1 archive                       "
+        echo "                                                   "
+        ps1file="ps1filenames.py?ra=$MASTER_RA&dec=$MASTER_DEC"
+        rm -fr $ps1file
+        wget "http://ps1images.stsci.edu/cgi-bin/$ps1file"
+        ps1file=$(ls ps1filenames.py?ra=* | sort -V | tail -n 1)
+        while read projcell subcell ra dec filter mjd type filename shortname
+            do
+                if [ $filter == $FILTER ]
+                then
+                    echo "  - Download $FILTER band image                    "
+                    echo "                                                   "
+                    wget "http://ps1images.stsci.edu/$filename"
+                    ps1fits="$MASTER.$filter"
+                    mv -f "${filename##*/}" $ps1fits.fits
+                fi
+        done < $ps1file
+        
+        if [ $OFFSET == "1" ]
+        then
+            echo "  - Query to the NOMAD archive for offset star     "
+            echo "                                                   "
+            rm -fr $ps1fits.tsv
+            ds9 -frame delete -frame new "$ps1fits.fits" -catalog nomad -catalog export tsv $ps1fits.tsv -exit
+            CHECKTSF=0
+            while [ $CHECKTSF -lt 1 ]
+                do
+                    if [ -f $ps1fits.tsv ]
+                    then
+                        CHECKTSF=1
+                        echo "   ... Wait for the catalogue to be written ...    "
+                        echo "                                                   "
+                        sleep 1.
+                    fi
+            done
+            rm -fr _temp?
+            tail -n +2 $ps1fits.tsv > _temp0
+            cut -f5-6,16 _temp0 > _temp1
+            while read RA_nomad DEC_nomad Rmag_nomad
+                do
+                    if [[ $Rmag_nomad < $MAGSTA ]] && [[ $Rmag_nomad > 10 ]]
+                    then
+                        echo $MASTER_RA $MASTER_DEC $RA_nomad $DEC_nomad $Rmag_nomad >> _temp2
+                    fi
+            done < _temp1
+            awk '{ delta=3600.*((cos(3.14/180.0*$2)*($1-$3))**2+($2-$4)**2.)**0.5; print delta, $3, $4, $5}' _temp2 >> _temp3
+            sort -k1 -g _temp3 > _temp4
+            head -3 _temp4 > _temp5
+            echo "  - The best offset star is:                       "
+            echo "                                                   "
+            # check condition that the star has ABS(PSF-APE)<0.1
+            rm -fr magdiff.txt
+            is_star=0
+            while read DISTANCE RA_nomad DEC_nomad Rmag_nomad
+                do
+                    echo "    RA=$RA_nomad Dec=$DEC_nomad                    "
+                    echo "    with Rmag=$Rmag_nomad                          "
+                    echo "    and separated by $DISTANCE arcsec from the target"
+                    echo "                                                   "
+                    echo "  - Query the PS1 archive for precise coordinates  "
+                    echo "                                                   "
+                    wget -O "$ps1fits.csv" -v -a logfile "https://archive.stsci.edu/panstarrs/search.php?RA=$RA_nomad&DEC=$DEC_nomad&radius=0.02&max_records=1&coordformat=dec&outputformat=CSV&action=Search"
+                    cat $ps1fits.csv | cut -d ',' -f3-4,33,37,49,53 > _temp6
+                    tail -n +3 _temp6 > _temp7
+                    sed -i 's/,/ /g' _temp7
+                    awk '{ delta_rmag=sqrt(($3-$4)^2); delta_zmag=sqrt(($5-$6)^2); print delta_rmag}' _temp7 > magdiff.txt
+                    DIFF_Rmag=$(cat magdiff.txt)
+                    echo "  - The PSF_mag - APERTURE_mag in r-band is: $DIFF_Rmag"
+                    echo "                                                   "
+                    if (( $(bc <<< "$DIFF_Rmag <= 0.05") ))
+                        then
+                            tail -n +3 _temp6 >> radec_stars.txt
+                            sed -i 's/,/ /g' radec_stars.txt
+                            echo "  - Creating FC                                    "
+                            echo "                                                   "
+                            echo "# Region file format: DS9 version 4.1" > $ps1fits.reg
+                            echo "global color=green dashlist=8 3 width=1 font=\"helvetica 18 bold roman\" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1" >> $ps1fits.reg
+                            echo "fk5"  >> $ps1fits.reg
+                            echo "circle($MASTER_RA,$MASTER_DEC,3\") # color=red width=4 text={$MASTER}"  >> $ps1fits.reg
+                            echo "circle($RA_nomad,$DEC_nomad,3\") # color=blue width=4 text={R = $Rmag_nomad mag}" >> $ps1fits.reg
+                            COMPASS_RA=$(echo "$MASTER_RA - 0.03" | bc -l)
+                            COMPASS_DEC=$(echo "$MASTER_DEC - 0.02" | bc -l)
+                            SCALE_RA=$(echo "$MASTER_RA + 0.03" | bc -l)
+                            SCALE_DEC=$(echo "$MASTER_DEC - 0.02" | bc -l)
+                            echo "# vector($SCALE_RA,$SCALE_DEC,30\",0) vector=0 color=black width=4 text={30\"}" >> $ps1fits.reg
+                            echo "# compass($COMPASS_RA,$COMPASS_DEC,15\") compass=fk5 {N} {E} 1 1 color=black width=4" >> $ps1fits.reg
+                            echo "  - Saving FC                                      "
+                            echo "                                                   "
+                            ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom 0.5 -colorbar no -saveimage "$MASTER.jpeg" 100 -exit
+                            echo "  - Calculate offset                               "
+                            echo "                                                   "
+                            while read RA_star DEC_star R_star Z_star
+                                do
+                                    echo $MASTER_RA $MASTER_DEC $RA_star $DEC_star > _temp9
+                                done < _temp7
+                            if [[ $MASTER_DEC < $DEC_nomad ]]
+                                then
+                                    awk '{ delta_RA=3600.*cos(3.14/180.0*$2)*($1-$3); delta_Dec=3600.*($2-$4); PA=180.*atan2((($1-$3)*cos(3.14/180.0*$2)),($2-$4))/3.14; print $1, $2, $3, $4, delta_RA, delta_Dec, PA}' _temp9 >> offsets.txt
+                                else
+                                    awk '{ delta_RA=3600.*cos(3.14/180.0*$4)*($1-$3); delta_Dec=3600.*($2-$4); PA=180.*atan2((($1-$3)*cos(3.14/180.0*$4)),($2-$4))/3.14; print $1, $2, $3, $4, delta_RA, delta_Dec, PA}' _temp9 >> offsets.txt
+                            fi
+                            break
+                    fi
+                done < _temp5
+                rm -fr $ps1fits.tsv
+                rm -fr $ps1fits.csv
+        else
+            echo "  - Creating FC                                    "
+            echo "                                                   "
+            echo "# Region file format: DS9 version 4.1" > $ps1fits.reg
+            echo "global color=green dashlist=8 3 width=1 font=\"helvetica 18 bold roman\" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1" >> $ps1fits.reg
+            echo "fk5"  >> $ps1fits.reg
+            echo "circle($MASTER_RA,$MASTER_DEC,3\") # color=red width=4 text={$MASTER}"  >> $ps1fits.reg
+            COMPASS_RA=$(echo "$MASTER_RA - 0.03" | bc -l)
+            COMPASS_DEC=$(echo "$MASTER_DEC - 0.02" | bc -l)
+            SCALE_RA=$(echo "$MASTER_RA + 0.03" | bc -l)
+            SCALE_DEC=$(echo "$MASTER_DEC - 0.02" | bc -l)
+            echo "# vector($SCALE_RA,$SCALE_DEC,30\",0) vector=0 color=black width=4 text={30\"}" >> $ps1fits.reg
+            echo "# compass($COMPASS_RA,$COMPASS_DEC,15\") compass=fk5 {N} {E} 1 1 color=black width=4" >> $ps1fits.reg
+            echo "  - Saving FC                                      "
+            echo "                                                   "
+            ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom 0.5 -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
+        fi
+        rm -fr _temp?
+        rm -fr logfile
+        rm -fr magdiff.txt
+        rm -fr ps1filenames*
+        echo "                                                   "
+done < $INFILE
+
+if [ $OFFSET == "1" ]
+    then
+        rm -fr OffsetStar.txt
+        echo "#            TARGET        RA_TARGET      DEC_TARGET         RA_STAR        DEC_STAR rPS1_STAR   DELTA_RA  DELTA_DEC         PA" >> OffsetStar.txt
+        echo "#                              [deg]           [deg]           [deg]           [deg]     [mag]   [arcsec]   [arcsec]      [deg]" >> OffsetStar.txt
+        awk '{print $1}' ./$INFILE > .file_col1
+        awk '{print $2}' ./$INFILE > .file_col2
+        awk '{print $3}' ./$INFILE > .file_col3
+        awk '{print $1}' ./radec_stars.txt > .file_col4
+        awk '{print $2}' ./radec_stars.txt > .file_col5
+        awk '{print $3}' ./radec_stars.txt > .file_col6
+        awk '{print $5}' ./offsets.txt > .file_col7
+        awk '{print $6}' ./offsets.txt > .file_col8
+        awk '{print $7}' ./offsets.txt > .file_col9
+
+        readarray -t column1 < .file_col1
+        readarray -t column2 < .file_col2
+        readarray -t column3 < .file_col3
+        readarray -t column4 < .file_col4
+        readarray -t column5 < .file_col5
+        readarray -t column6 < .file_col6
+        readarray -t column7 < .file_col7
+        readarray -t column8 < .file_col8
+        readarray -t column9 < .file_col9
+
+
+        RA_STA=( $(awk '{print $1}' ./radec_stars.txt) )
+        DE_STA=( $(awk '{print $2}' ./radec_stars.txt) )
+        i=0;
+        for (( i=0; i<${#column1[@]}; i++ )); do
+                # echo -e "${column1[$i]} ${column2[$i]} ${column3[$i]}"
+                printf "%20s %15s %15s %15s %15s %9s %10s %10s %10s\n" "${column1[$i]}" "${column2[$i]}" "${column3[$i]}" "${column4[$i]}" "${column5[$i]}" "${column6[$i]}" "${column7[$i]}" "${column8[$i]}" "${column9[$i]}" >> OffsetStar.txt 
+        done
+fi
+
+rm -fr .file_col?
+rm -fr offsets.txt
+rm -fr radec_stars.txt
