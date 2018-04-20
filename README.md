@@ -10,7 +10,7 @@ More useful is the option -o. The script will go through the NOMAD archive, sele
 
 This script use massively ds9 (http://ds9.si.edu/site/Home.html).
 
-ALWAYS double check the output, there is no warranty for absence of bugs.
+ALWAYS double check the output, there is no warranty for absence of bugs. If you find one, please, contact me here: https://emastro.github.io/contact.html
 
 You can check for options with:
 
