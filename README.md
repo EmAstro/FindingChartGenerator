@@ -5,13 +5,15 @@ The use is quite simple, you need a text file with your target name, RA, Dec (in
 
 ./GetFc -i radec.txt
 
-This will download PS1 images in z-band and create a simple FC.
-More useful is the option -o. The script will go through the NOMAD archive, select a star close to your target, check over PS1 that this is indeed a star (calculating the classical aperture mag -PSF mag), and print the file OffsetStar.txt with coordinates of the target, coordinates of the star, r-band PS1 magnitude of the star, RA and DEC offsets in arcsec, and PA in degrees.
+This will download z-band PS1 images and create a simple FC.
 
-This script use massively ds9 (http://ds9.si.edu/site/Home.html).
+More useful is the option -o. In this case, the script will go through the NOMAD archive, select a star close to the target, check over PS1 that this is indeed a star (calculating the classical aperture mag - PSF mag), and print the file OffsetStar.txt with: coordinate of the target, coordinate of the star, r-band PS1 magnitude of the star, RA and DEC offsets in arcsec, and PA in degrees.
 
-ALWAYS double check the output, there is no warranty for absence of bugs. If you find one, please, contact me here: https://emastro.github.io/contact.html
+This script uses massively ds9 (http://ds9.si.edu/site/Home.html).
 
-You can check for options with:
+ALWAYS double check the output and start from an empty folder. There is no warranty that this is a bug free code. If you find one, please contact me here: https://emastro.github.io/contact.html
+
+You can check for other options with:
 
 ./GetFc -h
+
