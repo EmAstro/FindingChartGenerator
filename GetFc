@@ -21,17 +21,19 @@ display_help() {
     echo "                 offset star                       "
     echo "                                                   "
     echo " The file containing RA and Dec should contain 3   "
-    echo " columns (ObjectName RA_deg DEC_deg in the         "
+    echo " columns (ObjectName RA_deg DEC_deg) in the        "
     echo " following format:                                 "
     echo "                                                   "
     echo " ------------------------------------------------- "
-    echo " PSO014p37   14.43529159 37.92128852               "
-    echo " PSO112p44  112.74595010 44.75898989               "
+    echo " PSO210p09  210.829703543   9.047498139            "
+    echo " PSO320m24  320.870330000 -24.360400000            "
     echo "                                                   "
     echo " ------------------------------------------------- "
     echo "                                                   "
     exit 1
 }
+
+
 
 ###########################################
 # Clean Folder                            #
@@ -211,7 +213,7 @@ while read MASTER MASTER_RA MASTER_DEC
                             echo "# compass($COMPASS_RA,$COMPASS_DEC,15\") compass=fk5 {N} {E} 1 1 color=black width=4" >> $ps1fits.reg
                             echo "  - Saving FC                                      "
                             echo "                                                   "
-                            ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom 0.5 -colorbar no -saveimage "$MASTER.jpeg" 100 -exit
+                            ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom 0.5 -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
                             echo "  - Calculate offset                               "
                             echo "                                                   "
                             while read RA_star DEC_star R_star Z_star

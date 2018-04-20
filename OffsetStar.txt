@@ -1,0 +1,4 @@
+#            TARGET        RA_TARGET      DEC_TARGET         RA_STAR        DEC_STAR rPS1_STAR   DELTA_RA  DELTA_DEC         PA
+#                              [deg]           [deg]           [deg]           [deg]     [mag]   [arcsec]   [arcsec]      [deg]
+           PSO210p09   210.829703543     9.047498139     210.8355622       9.0255811    16.824   -20.8303    78.9013   -14.7964
+           PSO320m24   320.870330000   -24.360400000     320.8582286     -24.3621593    15.615    39.6903    6.33348    80.9747
