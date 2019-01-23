@@ -18,7 +18,18 @@ DVER="Jan. 2019"
 #
 ###################################################################
 
-
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo "                                                   "
+echo " GetFc:                                            "
+echo " Creating finding chart in $FILTER band from the   "
+echo " input file $INFILE                                "
+echo "                                                   "
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo "                                                   "
+echo " Version $VERS written by $AUTH on $DVER           "
+echo "                                                   "
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo "                                                   "
 
 ###########################################
 # Help for GetFC                          #
@@ -41,6 +52,12 @@ display_help() {
     echo "                 offset star                       "
     echo " -e, --eso       Add PI and program information to "
     echo "                 the FCs                           "
+    echo " -fs, --fovsize  The code will drow a square box   "
+    echo "                 centered on the target with this  "
+    echo "                 size [in arcsec]                  "
+    echo " -z, --zoom      Parameter to adjust the zoom of   "
+    echo "                 ds9 when creating the FC. A value "
+    echo "                 around 1. is usually good.        "
     echo "                                                   "
     echo " The file containing RA and Dec should contain 3   "
     echo " columns (ObjectName RA_deg DEC_deg) in the        "
@@ -64,10 +81,8 @@ set_pi(){
     ISESO="true"
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
     echo " Setting options for ESO Programs                  "
-    echo " Insert PI Name:                                   "
-    read PINAME
-    echo " Insert Program Number:                            "
-    read PROGID
+    read -p " Insert PI Name: " PINAME
+    read -p " Insert Program Number: " PROGID
     echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 }
 
@@ -139,9 +154,15 @@ do
           set_pi
           shift
           ;;
-      -m | --magstar)
+      -fs | --fovsize)
           if [ $# -ne 0 ]; then
               FOV="$2"
+          fi
+          shift 2
+          ;;
+      -z | --zoom)
+          if [ $# -ne 0 ]; then
+              ZOOM="$2"
           fi
           shift 2
           ;;
@@ -157,12 +178,14 @@ do
           echo "                                                   "
           echo "Error: Unknown option: $1                          " >&2
           echo " Options are:                                      "
+          echo " -h, --help      Display help                      "
           echo " -i, --infile    File Containing RA and Dec        "
           echo " -f, --filter    Select the filter for the FC      "
           echo " -o, --offset    Select if you need an offset star "
           echo " -m, --magstar   R-band limit magnitude of the star"
           echo " -e, --eso       Add PI and program info to the FC "
-          echo " -s, --size      Specify FoV size in arcseconds    "
+          echo " -fs, --fovsize  Specify FoV size in arcseconds    "
+          echo " -z, --zoom      Zoom of the ds9 FC                "
           echo "                                                   "
           exit 1 
           ;;
@@ -173,22 +196,6 @@ do
 done
 
 clean_folder
-
-echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-echo "                                                   "
-echo " GetFc:                                            "
-echo " Creating finding chart in $FILTER band from the   "
-echo " input file $INFILE                                "
-echo "                                                   "
-echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-echo "                                                   "
-echo " Version $VERS written by $AUTH on $DVER           "
-echo "                                                   "
-echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
-echo "                                                   "
-
-
-
 
 while read MASTER MASTER_RA MASTER_DEC
     do
