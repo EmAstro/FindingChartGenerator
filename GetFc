@@ -20,9 +20,7 @@ DVER="Jan. 2019"
 
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "                                                   "
-echo " GetFc:                                            "
-echo " Creating finding chart in $FILTER band from the   "
-echo " input file $INFILE                                "
+echo " GetFc                                             "
 echo "                                                   "
 echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 echo "                                                   "
@@ -194,6 +192,15 @@ do
           ;;
     esac
 done
+
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo "                                                   "
+echo " Creating finding chart in $FILTER band from the   "
+echo " input file $INFILE                                "
+echo "                                                   "
+echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+echo "                                                   "
+
 
 clean_folder
 
