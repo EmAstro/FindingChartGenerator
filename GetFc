@@ -202,7 +202,7 @@ while read MASTER MASTER_RA MASTER_DEC
         echo "                                                   "
         echo " OBJECT: $MASTER                                   "
         echo "                                                   "
-        echo "  - Query to the PS1 archive                       "
+        echo "  - Querying the PS1 archive                       "
         ps1file="ps1filenames.py?ra=$MASTER_RA&dec=$MASTER_DEC"
         rm -fr $ps1file
         wget -q "http://ps1images.stsci.edu/cgi-bin/$ps1file"
@@ -211,7 +211,7 @@ while read MASTER MASTER_RA MASTER_DEC
             do
                 if [ $filter == $FILTER ]
                 then
-                    echo "  - Download $FILTER band image                    "
+                    echo "  - Downloading $FILTER band image                    "
                     wget -q "http://ps1images.stsci.edu/$filename"
                     ps1fits="$MASTER.$filter"
                     mv -f "${filename##*/}" $ps1fits.fits
@@ -220,7 +220,7 @@ while read MASTER MASTER_RA MASTER_DEC
         
         if [ $OFFSET == "1" ]
         then
-            echo "  - Query to the NOMAD archive for offset star     "
+            echo "  - Querying to the NOMAD archive for offset star     "
             rm -fr $ps1fits.tsv
             ds9 -frame delete -frame new "$ps1fits.fits" -catalog nomad -catalog export tsv $ps1fits.tsv -exit
             CHECKTSF=0
@@ -229,7 +229,7 @@ while read MASTER MASTER_RA MASTER_DEC
                     if [ -f $ps1fits.tsv ]
                     then
                         CHECKTSF=1
-                        echo "   ... Wait for the catalogue to be written ...    "
+                        echo "   ... Waiting for the catalogue to be written ...    "
                         sleep 2.
                     fi
             done
@@ -309,7 +309,7 @@ while read MASTER MASTER_RA MASTER_DEC
                                 echo "# compass($COMPASS_RA,$COMPASS_DEC,15\") compass=fk5 {N} {E} 1 1 color=black width=4" >> $ps1fits.reg
                                 echo "  - Saving FC                                      "
                                 ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom $ZOOM -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
-                                echo "  - Calculate offset                               "
+                                echo "  - Calculating offset                               "
                                 while read RA_star DEC_star R_star Z_star
                                     do
                                         echo $MASTER_RA $MASTER_DEC $RA_star $DEC_star > _temp9
