@@ -59,9 +59,16 @@ display_help() {
 # Define ESO PI details                   #
 ###########################################
 set_pi(){
-    PINAME="VDOdorico"
-    PROGID="1103.A-0817(A)"
+    PINAME="EPFarina"
+    PROGID="XXXX.A-XXX(A)"
     ISESO="true"
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
+    echo " Setting options for ESO Programs                  "
+    echo " Insert PI Name:                                   "
+    read PINAME
+    echo " Insert Program Number:                            "
+    read PROGID
+    echo "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
 }
 
 ###########################################
