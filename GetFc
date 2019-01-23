@@ -100,6 +100,7 @@ clean_folder() {
 : ${MAGSTA:="18.0"}
 : ${ISESO:="false"}
 : ${ZOOM:="1.0"}
+: ${FOV:="120.0"}
 
 ###########################################
 # Control options                         #
@@ -126,7 +127,7 @@ do
           ;;
       -m | --magstar)
           if [ $# -ne 0 ]; then
-            MAGSTA="$2"
+              MAGSTA="$2"
           fi
           shift 2
           ;;
@@ -137,6 +138,12 @@ do
       -e | --eso)
           set_pi
           shift
+          ;;
+      -m | --magstar)
+          if [ $# -ne 0 ]; then
+              FOV="$2"
+          fi
+          shift 2
           ;;
       -h | --help)
           display_help
@@ -155,6 +162,7 @@ do
           echo " -o, --offset    Select if you need an offset star "
           echo " -m, --magstar   R-band limit magnitude of the star"
           echo " -e, --eso       Add PI and program info to the FC "
+          echo " -s, --size      Specify FoV size in arcseconds    "
           echo "                                                   "
           exit 1 
           ;;
@@ -285,7 +293,7 @@ while read MASTER MASTER_RA MASTER_DEC
                                     # FC band position
                                     BAND_RA=$(echo "$MASTER_RA + (0.010/c(3.14/180.0*$MASTER_DEC))" | bc -l) # ToDo: this should be related to the size of the FC in "
                                     BAND_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                           # ToDo: this should be related to the size of the FC in "
-                                    echo "box($MASTER_RA,$MASTER_DEC,120\",120\",0.0) # color=black width=4 text={120\"x120\"} dash=1" >> $ps1fits.reg
+                                    echo "box($MASTER_RA,$MASTER_DEC,$FOV\",$FOV\",0.0) # color=black width=4 text={$FOV\"x$FOV\"} dash=1" >> $ps1fits.reg
                                     echo "# text($PI_RA,$PI_DEC) textangle=0.0 color=red width=4 text={PI: $PINAME}" >> $ps1fits.reg
                                     echo "# text($ID_RA,$ID_DEC) textangle=0.0 color=red width=4 text={$PROGID}" >> $ps1fits.reg
                                     echo "# text($BAND_RA,$BAND_DEC) textangle=0.0 color=black width=4 text={$FILTER band}" >> $ps1fits.reg
@@ -333,7 +341,7 @@ while read MASTER MASTER_RA MASTER_DEC
                 # FC band position
                 BAND_RA=$(echo "$MASTER_RA + (0.010/c(3.14/180.0*$MASTER_DEC))" | bc -l) # ToDo: this should be related to the size of the FC in "
                 BAND_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l) 			  # ToDo: this should be related to the size of the FC in "
-                echo "box($MASTER_RA,$MASTER_DEC,120\",120\",0.0) # color=black width=4 text={120\"x120\"} dash=1" >> $ps1fits.reg
+                echo "box($MASTER_RA,$MASTER_DEC,$FOV\",$FOV\",0.0) # color=black width=4 text={$FOV\"x$FOV\"} dash=1" >> $ps1fits.reg
                 echo "# text($PI_RA,$PI_DEC) textangle=0.0 color=red width=4 text={PI: $PINAME}" >> $ps1fits.reg
                 echo "# text($ID_RA,$ID_DEC) textangle=0.0 color=red width=4 text={$PROGID}" >> $ps1fits.reg
                 echo "# text($BAND_RA,$BAND_DEC) textangle=0.0 color=black width=4 text={$FILTER band}" >> $ps1fits.reg
