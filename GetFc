@@ -134,10 +134,6 @@ do
           fi
           shift 2
           ;;
-      -o | --offset)
-          OFFSET="1"
-          shift
-          ;;
       -m | --magstar)
           if [ $# -ne 0 ]; then
               MAGSTA="$2"
@@ -297,7 +293,7 @@ while read MASTER MASTER_RA MASTER_DEC
                                 echo "fk5"  >> $ps1fits.reg
                                 echo "circle($MASTER_RA,$MASTER_DEC,3\") # color=red width=4 text={$MASTER}"  >> $ps1fits.reg
                                 echo "circle($RA_nomad,$DEC_nomad,3\") # color=blue width=4 text={R = $Rmag_nomad mag}" >> $ps1fits.reg
-                                if [ $ISESO=true ]; then
+                                if [ $ISESO == true ]; then
                                     # PI name position
                                     PI_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
                                     PI_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                             # ToDo: this should be related to the size of the FC in "
@@ -345,16 +341,16 @@ while read MASTER MASTER_RA MASTER_DEC
             echo "global color=green dashlist=8 3 width=1 font=\"helvetica 18 bold roman\" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1" >> $ps1fits.reg
             echo "fk5"  >> $ps1fits.reg
             echo "circle($MASTER_RA,$MASTER_DEC,3\") # color=red width=4 text={$MASTER}"  >> $ps1fits.reg
-            if [ $ISESO=true ]; then
+            if [ $ISESO == true ]; then
                 # PI name position
                 PI_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
-                PI_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)				  # ToDo: this should be related to the size of the FC in "
+                PI_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                             # ToDo: this should be related to the size of the FC in "
                 # programme ID position
                 ID_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
-                ID_DEC=$(echo "$MASTER_DEC + 0.0085" | bc -l)  			  # ToDo: this should be related to the size of the FC in "
+                ID_DEC=$(echo "$MASTER_DEC + 0.0085" | bc -l)                            # ToDo: this should be related to the size of the FC in "
                 # FC band position
                 BAND_RA=$(echo "$MASTER_RA + (0.010/c(3.14/180.0*$MASTER_DEC))" | bc -l) # ToDo: this should be related to the size of the FC in "
-                BAND_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l) 			  # ToDo: this should be related to the size of the FC in "
+                BAND_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                           # ToDo: this should be related to the size of the FC in "
                 echo "box($MASTER_RA,$MASTER_DEC,$FOV\",$FOV\",0.0) # color=black width=4 text={$FOV\"x$FOV\"} dash=1" >> $ps1fits.reg
                 echo "# text($PI_RA,$PI_DEC) textangle=0.0 color=red width=4 text={PI: $PINAME}" >> $ps1fits.reg
                 echo "# text($ID_RA,$ID_DEC) textangle=0.0 color=red width=4 text={$PROGID}" >> $ps1fits.reg
