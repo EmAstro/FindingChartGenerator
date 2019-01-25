@@ -109,7 +109,7 @@ clean_folder() {
 
 : ${INFILE:="radec.txt"}
 : ${FILTER:="z"}
-: ${OFFSET:="0"}
+: ${OFFSET:="false"}
 : ${MAGSTA:="18.0"}
 : ${ISESO:="false"}
 : ${ZOOM:="1.0"}
@@ -141,7 +141,7 @@ do
           shift 2
           ;;
       -o | --offset)
-          OFFSET="1"
+          OFFSET="true"
           shift
           ;;
       -e | --eso)
@@ -210,31 +210,42 @@ while read MASTER MASTER_RA MASTER_DEC
         rm -fr $ps1file
         wget -q "http://ps1images.stsci.edu/cgi-bin/$ps1file"
         ps1file=$(ls ps1filenames.py?ra=* | sort -V | tail -n 1)
-        while read projcell subcell ra dec filter mjd type filename shortname
-            do
-                if [ $filter == $FILTER ]
-                then
-                    echo "  - Downloading $FILTER band image                    "
-                    wget -q "http://ps1images.stsci.edu/$filename"
-                    ps1fits="$MASTER.$filter"
-                    mv -f "${filename##*/}" $ps1fits.fits
-                fi
-        done < $ps1file
-        
-        if [ $OFFSET == "1" ]
-        then
+        if [ $(less $ps1file | wc -l) -lt "2" ]; then
+            echo "    WARNING! RA and Dec outside the PS1 footprint "
+            echo "    The finding chart will be generated from ESO DSS"
+            ISPS1="false"
+            else
+            ISPS1="true"
+        fi
+        if [ $ISPS1 == "true" ]; then
+            while read projcell subcell ra dec filter mjd type filename shortname
+                do
+                    if [ $filter == $FILTER ]
+                    then
+                        echo "  - Downloading $FILTER band image                    "
+                        wget -q "http://ps1images.stsci.edu/$filename"
+                        ps1fits="$MASTER.$filter"
+                        mv -f "${filename##*/}" $ps1fits.fits
+                    fi
+            done < $ps1file
+            else
+                ps1fits="$MASTER.ESODSS"
+        fi
+        if [ $OFFSET == "true" ]; then
             echo "  - Querying to the NOMAD archive for offset star     "
             rm -fr $ps1fits.tsv
-            ds9 -frame delete -frame new "$ps1fits.fits" -catalog nomad -catalog export tsv $ps1fits.tsv -exit
+            if [ $ISPS1 == "true" ]; then
+                ds9 -frame delete -frame new "$ps1fits.fits" -catalog nomad -catalog export tsv $ps1fits.tsv -exit
+                else
+                ds9 -frame delete -frame new -dsseso coord $MASTER_RA $MASTER_DEC -dsseso size 5 5 arcmin -catalog nomad -catalog export tsv $ps1fits.tsv -exit
+            fi
             CHECKTSF=0
-            while [ $CHECKTSF -lt 1 ]
-                do
-                    if [ -f $ps1fits.tsv ]
-                    then
-                        CHECKTSF=1
-                        echo "   ... Waiting for the catalogue to be written ...    "
-                        sleep 2.
-                    fi
+            while [ $CHECKTSF -lt 1 ]; do
+                if [ -f $ps1fits.tsv ]; then
+                    CHECKTSF=1
+                    echo "    ... Waiting for the catalogue to be written ...    "
+                    sleep 2.
+                fi
             done
             rm -fr _fullNomadCatalogue
             rm -fr _fullNomadCatalogueRaDecRmag
@@ -246,12 +257,10 @@ while read MASTER MASTER_RA MASTER_DEC
             rm -fr _temp?
             tail -n +2 $ps1fits.tsv > _fullNomadCatalogue
             cut -f5-6,16 _fullNomadCatalogue > _fullNomadCatalogueRaDecRmag
-            while read RA_nomad DEC_nomad Rmag_nomad
-                do
-                    if [[ $Rmag_nomad < $MAGSTA ]] && [[ $Rmag_nomad > 10 ]]
-                    then
-                        echo $MASTER_RA $MASTER_DEC $RA_nomad $DEC_nomad $Rmag_nomad >> _brightStarsRaObjDecObjRaStarDecStarRmagStar
-                    fi
+            while read RA_nomad DEC_nomad Rmag_nomad; do
+                if [[ $Rmag_nomad < $MAGSTA ]] && [[ $Rmag_nomad > 10 ]]; then
+                    echo $MASTER_RA $MASTER_DEC $RA_nomad $DEC_nomad $Rmag_nomad >> _brightStarsRaObjDecObjRaStarDecStarRmagStar
+                fi
             done < _fullNomadCatalogueRaDecRmag
             awk '{ delta=3600.*((cos(3.14/180.0*$2)*($1-$3))**2+($2-$4)**2.)**0.5; print delta, $3, $4, $5}' _brightStarsRaObjDecObjRaStarDecStarRmagStar >>  _brightStarsSeparationRaStarDecStarRmagStar
             sort -k1 -g  _brightStarsSeparationRaStarDecStarRmagStar > _brightStarsSortSeparationRaStarDecStarRmagStar
@@ -259,9 +268,9 @@ while read MASTER MASTER_RA MASTER_DEC
             echo "  - Searching for the best offset star:                  "
             # check condition that the star has ABS(PSF-APE)<0.1
             rm -fr magdiff.txt
-            is_star=0
-            while read DISTANCE RA_nomad DEC_nomad Rmag_nomad
-                do
+            ISSTAR="false"
+            while read DISTANCE RA_nomad DEC_nomad Rmag_nomad; do
+                if [ $ISPS1 == "true" ]; then
                     echo "    - RA=$RA_nomad Dec=$DEC_nomad                    "
                     echo "      with Rmag=$Rmag_nomad                          "
                     echo "      and separated by $DISTANCE arcsec from the target"
@@ -277,58 +286,111 @@ while read MASTER MASTER_RA MASTER_DEC
                         awk '{ delta_rmag=sqrt(($3-$4)^2); delta_zmag=sqrt(($5-$6)^2); print delta_rmag}' _temp7 > magdiff.txt
                         DIFF_Rmag=$(cat magdiff.txt)
                         echo "      The PSF_mag - APERTURE_mag in r-band is: $DIFF_Rmag"
-                        if (( $(bc <<< "$DIFF_Rmag <= 0.05") ))
-                            then
-                                tail -n +3 _starPS1RaDecRpsfRapZpsfZap >> radec_stars.txt
-                                sed -i 's/,/ /g' radec_stars.txt
-                                echo "  - Creating FC                                    "
-                                # Compass position
-                                COMPASS_RA=$(echo "$MASTER_RA - (0.015/c(3.14/180.0*$MASTER_DEC))" | bc -l)
-                                COMPASS_DEC=$(echo "$MASTER_DEC - 0.01" | bc -l)
-                                # Scale-bar position
-                                SCALE_RA=$(echo "$MASTER_RA + (0.015/c(3.14/180.0*$MASTER_DEC))" | bc -l)
-                                SCALE_DEC=$(echo "$MASTER_DEC - 0.01" | bc -l)
-                                echo "# Region file format: DS9 version 4.1" > $ps1fits.reg
-                                echo "global color=green dashlist=8 3 width=1 font=\"helvetica 18 bold roman\" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1" >> $ps1fits.reg
-                                echo "fk5"  >> $ps1fits.reg
-                                echo "circle($MASTER_RA,$MASTER_DEC,3\") # color=red width=4 text={$MASTER}"  >> $ps1fits.reg
-                                echo "circle($RA_nomad,$DEC_nomad,3\") # color=blue width=4 text={R = $Rmag_nomad mag}" >> $ps1fits.reg
-                                if [ $ISESO == true ]; then
-                                    # PI name position
-                                    PI_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
-                                    PI_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                             # ToDo: this should be related to the size of the FC in "
-                                    # programme ID position
-                                    ID_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
-                                    ID_DEC=$(echo "$MASTER_DEC + 0.0085" | bc -l)                            # ToDo: this should be related to the size of the FC in "
-                                    # FC band position
-                                    BAND_RA=$(echo "$MASTER_RA + (0.010/c(3.14/180.0*$MASTER_DEC))" | bc -l) # ToDo: this should be related to the size of the FC in "
-                                    BAND_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                           # ToDo: this should be related to the size of the FC in "
-                                    echo "box($MASTER_RA,$MASTER_DEC,$FOV\",$FOV\",0.0) # color=black width=4 text={$FOV\"x$FOV\"} dash=1" >> $ps1fits.reg
-                                    echo "# text($PI_RA,$PI_DEC) textangle=0.0 color=red width=4 text={PI: $PINAME}" >> $ps1fits.reg
-                                    echo "# text($ID_RA,$ID_DEC) textangle=0.0 color=red width=4 text={$PROGID}" >> $ps1fits.reg
-                                    echo "# text($BAND_RA,$BAND_DEC) textangle=0.0 color=black width=4 text={$FILTER band}" >> $ps1fits.reg
-                                fi
-                                echo "# vector($SCALE_RA,$SCALE_DEC,30\",0) vector=0 color=black width=4 text={30\"}" >> $ps1fits.reg
-                                echo "# compass($COMPASS_RA,$COMPASS_DEC,15\") compass=fk5 {N} {E} 1 1 color=black width=4" >> $ps1fits.reg
-                                echo "  - Saving FC                                      "
-                                ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom $ZOOM -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
-                                echo "  - Calculating offset                               "
-                                while read RA_star DEC_star R_star Z_star
-                                    do
-                                        echo $MASTER_RA $MASTER_DEC $RA_star $DEC_star > _temp9
-                                    done < _temp7
-                                if [[ $MASTER_DEC < $DEC_nomad ]]
-                                    then
-                                        awk '{ delta_RA=3600.*cos(3.14/180.0*$2)*($1-$3); delta_Dec=3600.*($2-$4); PA=180.*atan2((($1-$3)*cos(3.14/180.0*$2)),($2-$4))/3.14; print $1, $2, $3, $4, delta_RA, delta_Dec, PA}' _temp9 >> offsets.txt
-                                    else
-                                        awk '{ delta_RA=3600.*cos(3.14/180.0*$4)*($1-$3); delta_Dec=3600.*($2-$4); PA=180.*atan2((($1-$3)*cos(3.14/180.0*$4)),($2-$4))/3.14; print $1, $2, $3, $4, delta_RA, delta_Dec, PA}' _temp9 >> offsets.txt
-                                fi
-                                break
+                        if (( $(bc <<< "$DIFF_Rmag <= 0.05") )); then
+                            tail -n +3 _starPS1RaDecRpsfRapZpsfZap >> radec_stars.txt
+                            sed -i 's/,/ /g' radec_stars.txt
+                            echo "  - Creating FC                                    "
+                            # Compass position
+                            COMPASS_RA=$(echo "$MASTER_RA - (0.015/c(3.14/180.0*$MASTER_DEC))" | bc -l)
+                            COMPASS_DEC=$(echo "$MASTER_DEC - 0.01" | bc -l)
+                            # Scale-bar position
+                            SCALE_RA=$(echo "$MASTER_RA + (0.015/c(3.14/180.0*$MASTER_DEC))" | bc -l)
+                            SCALE_DEC=$(echo "$MASTER_DEC - 0.01" | bc -l)
+                            echo "# Region file format: DS9 version 4.1" > $ps1fits.reg
+                            echo "global color=green dashlist=8 3 width=1 font=\"helvetica 18 bold roman\" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1" >> $ps1fits.reg
+                            echo "fk5"  >> $ps1fits.reg
+                            echo "circle($MASTER_RA,$MASTER_DEC,3\") # color=red width=4 text={$MASTER}"  >> $ps1fits.reg
+                            echo "circle($RA_nomad,$DEC_nomad,3\") # color=blue width=4 text={R = $Rmag_nomad mag}" >> $ps1fits.reg
+                            echo "box($MASTER_RA,$MASTER_DEC,$FOV\",$FOV\",0.0) # color=black width=4 text={$FOV\"x$FOV\"} dash=1" >> $ps1fits.reg
+                            if [ $ISESO == true ]; then
+                                # PI name position
+                                PI_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
+                                PI_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                             # ToDo: this should be related to the size of the FC in "
+                                # programme ID position
+                                ID_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
+                                ID_DEC=$(echo "$MASTER_DEC + 0.0085" | bc -l)                            # ToDo: this should be related to the size of the FC in "
+                                # FC band position
+                                BAND_RA=$(echo "$MASTER_RA + (0.010/c(3.14/180.0*$MASTER_DEC))" | bc -l) # ToDo: this should be related to the size of the FC in "
+                                BAND_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                           # ToDo: this should be related to the size of the FC in "
+                                echo "# text($PI_RA,$PI_DEC) textangle=0.0 color=red width=4 text={PI: $PINAME}" >> $ps1fits.reg
+                                echo "# text($ID_RA,$ID_DEC) textangle=0.0 color=red width=4 text={$PROGID}" >> $ps1fits.reg
+                                echo "# text($BAND_RA,$BAND_DEC) textangle=0.0 color=black width=4 text={$FILTER band}" >> $ps1fits.reg
+                            fi
+                            echo "# vector($SCALE_RA,$SCALE_DEC,30\",0) vector=0 color=black width=4 text={30\"}" >> $ps1fits.reg
+                            echo "# compass($COMPASS_RA,$COMPASS_DEC,15\") compass=fk5 {N} {E} 1 1 color=black width=4" >> $ps1fits.reg
+                            echo "  - Saving FC                                      "
+                            ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom $ZOOM -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
+                            echo "  - Calculating offset                               "
+                            while read RA_star DEC_star R_star Z_star; do
+                                echo $MASTER_RA $MASTER_DEC $RA_star $DEC_star > _temp9
+                            done < _temp7
+                            if [[ $MASTER_DEC < $DEC_nomad ]]; then
+                                awk '{ delta_RA=3600.*cos(3.14/180.0*$2)*($1-$3); delta_Dec=3600.*($2-$4); PA=180.*atan2((($1-$3)*cos(3.14/180.0*$2)),($2-$4))/3.14; print $1, $2, $3, $4, delta_RA, delta_Dec, PA}' _temp9 >> offsets.txt
+                            else
+                                awk '{ delta_RA=3600.*cos(3.14/180.0*$4)*($1-$3); delta_Dec=3600.*($2-$4); PA=180.*atan2((($1-$3)*cos(3.14/180.0*$4)),($2-$4))/3.14; print $1, $2, $3, $4, delta_RA, delta_Dec, PA}' _temp9 >> offsets.txt
+                            fi
+                            ISSTAR="true"
+                            break
                         fi
                     fi
-                done < _brightStarsCloseSeparationRaStarDecStarRmagStar
+                fi
                 rm -fr $ps1fits.tsv
                 rm -fr $ps1fits.csv
+            done < _brightStarsCloseSeparationRaStarDecStarRmagStar
+            if [ $ISSTAR == "false" ]; then
+                echo "    WARNING! No star matching in PS1!"
+                echo "    Using NOMAD coordinates. These may not be accurate"
+                while read DISTANCE RA_nomad DEC_nomad Rmag_nomad; do
+                    echo "    RA=$RA_nomad Dec=$DEC_nomad   "
+                    echo "    with Rmag=$Rmag_nomad       "
+                    echo "    and separated by $DISTANCE arcsec from the target"
+                    echo "  - Creating FC    "
+                    # Compass position
+                    COMPASS_RA=$(echo "$MASTER_RA - (0.015/c(3.14/180.0*$MASTER_DEC))" | bc -l)
+                    COMPASS_DEC=$(echo "$MASTER_DEC - 0.01" | bc -l)
+                    # Scale-bar position
+                    SCALE_RA=$(echo "$MASTER_RA + (0.015/c(3.14/180.0*$MASTER_DEC))" | bc -l)
+                    SCALE_DEC=$(echo "$MASTER_DEC - 0.01" | bc -l)
+                    echo "# Region file format: DS9 version 4.1" > $ps1fits.reg
+                    echo "global color=green dashlist=8 3 width=1 font=\"helvetica 18 bold roman\" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1" >> $ps1fits.reg
+                    echo "fk5"  >> $ps1fits.reg
+                    echo "circle($MASTER_RA,$MASTER_DEC,3\") # color=red width=4 text={$MASTER}"  >> $ps1fits.reg
+                    echo "circle($RA_nomad,$DEC_nomad,3\") # color=blue width=4 text={R = $Rmag_nomad mag}" >> $ps1fits.reg
+                    echo "box($MASTER_RA,$MASTER_DEC,$FOV\",$FOV\",0.0) # color=black width=4 text={$FOV\"x$FOV\"} dash=1" >> $ps1fits.reg
+                    if [ $ISESO == true ]; then
+                        # PI name position
+                        PI_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
+                        PI_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)   # ToDo: this should be related to the size of the FC in "
+                        # programme ID position
+                        ID_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
+                        ID_DEC=$(echo "$MASTER_DEC + 0.0085" | bc -l)  # ToDo: this should be related to the size of the FC in "
+                        # FC band position
+                        BAND_RA=$(echo "$MASTER_RA + (0.010/c(3.14/180.0*$MASTER_DEC))" | bc -l) # ToDo: this should be related to the size of the FC in "
+                        BAND_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)  # ToDo: this should be related to the size of the FC in "
+                        echo "# text($PI_RA,$PI_DEC) textangle=0.0 color=red width=4 text={PI: $PINAME}" >> $ps1fits.reg
+                        echo "# text($ID_RA,$ID_DEC) textangle=0.0 color=red width=4 text={$PROGID}" >> $ps1fits.reg
+                        echo "# text($BAND_RA,$BAND_DEC) textangle=0.0 color=black width=4 text={$FILTER band}" >> $ps1fits.reg
+                    fi
+                    echo "# vector($SCALE_RA,$SCALE_DEC,30\",0) vector=0 color=black width=4 text={30\"}" >> $ps1fits.reg
+                    echo "# compass($COMPASS_RA,$COMPASS_DEC,15\") compass=fk5 {N} {E} 1 1 color=black width=4" >> $ps1fits.reg
+                    echo "  - Saving FC 				     "
+                    if [ $ISPS1 == "true" ]; then
+                        ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom $ZOOM -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
+                    else
+                        ds9 -frame delete -frame new -dsseso coord $MASTER_RA $MASTER_DEC  -dsseso size $FOV $FOV arcmin -scale limits -1. 5. -scale zscale -cmap invert yes  -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom 5 -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
+                    fi
+                    echo "  - Calculating offset"
+                    echo $MASTER_RA $MASTER_DEC $RA_nomad $DEC_nomad > _temp9
+                    if [[ $MASTER_DEC < $DEC_nomad ]]
+                        then
+                            awk '{ delta_RA=3600.*cos(3.14/180.0*$2)*($1-$3); delta_Dec=3600.*($2-$4); PA=180.*atan2((($1-$3)*cos(3.14/180.0*$2)),($2-$4))/3.14; print $1, $2, $3, $4, delta_RA, delta_Dec, PA}' _temp9 >> offsets.txt
+                        else
+                            awk '{ delta_RA=3600.*cos(3.14/180.0*$4)*($1-$3); delta_Dec=3600.*($2-$4); PA=180.*atan2((($1-$3)*cos(3.14/180.0*$4)),($2-$4))/3.14; print $1, $2, $3, $4, delta_RA, delta_Dec, PA}' _temp9 >> offsets.txt
+                    fi
+                    ISSTAR="true"
+                    break
+                done < _brightStarsCloseSeparationRaStarDecStarRmagStar
+            fi
         else
             echo "  - Creating FC                                    "
             # Compass position
@@ -341,6 +403,7 @@ while read MASTER MASTER_RA MASTER_DEC
             echo "global color=green dashlist=8 3 width=1 font=\"helvetica 18 bold roman\" select=1 highlite=1 dash=0 fixed=0 edit=1 move=1 delete=1 include=1 source=1" >> $ps1fits.reg
             echo "fk5"  >> $ps1fits.reg
             echo "circle($MASTER_RA,$MASTER_DEC,3\") # color=red width=4 text={$MASTER}"  >> $ps1fits.reg
+            echo "box($MASTER_RA,$MASTER_DEC,$FOV\",$FOV\",0.0) # color=black width=4 text={$FOV\"x$FOV\"} dash=1" >> $ps1fits.reg
             if [ $ISESO == true ]; then
                 # PI name position
                 PI_RA=$(echo "$MASTER_RA - (0.009/c(3.14/180.0*$MASTER_DEC))" | bc -l)   # ToDo: this should be related to the size of the FC in "
@@ -351,7 +414,6 @@ while read MASTER MASTER_RA MASTER_DEC
                 # FC band position
                 BAND_RA=$(echo "$MASTER_RA + (0.010/c(3.14/180.0*$MASTER_DEC))" | bc -l) # ToDo: this should be related to the size of the FC in "
                 BAND_DEC=$(echo "$MASTER_DEC + 0.010" | bc -l)                           # ToDo: this should be related to the size of the FC in "
-                echo "box($MASTER_RA,$MASTER_DEC,$FOV\",$FOV\",0.0) # color=black width=4 text={$FOV\"x$FOV\"} dash=1" >> $ps1fits.reg
                 echo "# text($PI_RA,$PI_DEC) textangle=0.0 color=red width=4 text={PI: $PINAME}" >> $ps1fits.reg
                 echo "# text($ID_RA,$ID_DEC) textangle=0.0 color=red width=4 text={$PROGID}" >> $ps1fits.reg
                 echo "# text($BAND_RA,$BAND_DEC) textangle=0.0 color=black width=4 text={$FILTER band}" >> $ps1fits.reg
@@ -359,7 +421,11 @@ while read MASTER MASTER_RA MASTER_DEC
             echo "# vector($SCALE_RA,$SCALE_DEC,30\",0) vector=0 color=black width=4 text={30\"}" >> $ps1fits.reg
             echo "# compass($COMPASS_RA,$COMPASS_DEC,15\") compass=fk5 {N} {E} 1 1 color=black width=4" >> $ps1fits.reg
             echo "  - Saving FC                                      "
-            ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom $ZOOM -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
+            if [ $ISPS1 == "true" ]; then
+                ds9 -frame delete -frame new "$ps1fits.fits" -scale limits -1. 5. -scale zscale -cmap invert yes -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom $ZOOM -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
+                else
+                ds9 -frame delete -frame new -dsseso coord $MASTER_RA $MASTER_DEC  -dsseso size $FOV $FOV arcmin -scale limits -1. 5. -scale zscale -cmap invert yes  -pan to $MASTER_RA $MASTER_DEC wcs fk5 -region load all "$ps1fits.reg" -geometry 800x900 -zoom 5 -colorbar no -saveimage "$ps1fits.jpeg" 100 -exit
+            fi
         fi
         rm -fr _fullNomadCatalogue
         rm -fr _fullNomadCatalogueRaDecRmag
@@ -409,7 +475,6 @@ if [ $OFFSET == "1" ]
                 printf "%20s %15s %15s %15s %15s %9s %10s %10s %10s\n" "${column1[$i]}" "${column2[$i]}" "${column3[$i]}" "${column4[$i]}" "${column5[$i]}" "${column6[$i]}" "${column7[$i]}" "${column8[$i]}" "${column9[$i]}" >> OffsetStar.txt 
         done
 fi
-
 rm -fr .file_col?
 rm -fr offsets.txt
 rm -fr radec_stars.txt
