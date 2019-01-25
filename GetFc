@@ -37,7 +37,7 @@ display_help() {
     echo " This is a simple bash script that automatically   "
     echo " creates finding charts from PS1 images.           "
     echo "                                                   "
-    echo " GetFC -- Version 0.0 -- EPFarina                  "
+    echo " GetFC -- Version $VERS written by $AUTH on $DVER  "
     echo "                                                   "
     echo " Options:                                          "
     echo "                                                   "
@@ -289,8 +289,8 @@ while read MASTER MASTER_RA MASTER_DEC
                         DIFF_Rmag=$(cat magdiff.txt)
                         echo "      The PSF_mag - APERTURE_mag in r-band is: $DIFF_Rmag"
                         if (( $(bc <<< "$DIFF_Rmag <= 0.05") )); then
-                            RA_nomad_refined = $(awk '{ print $1}' _starPS1RaDecRpsfRapZpsfZap_Clean)
-                            DEC_nomad_refined = $(awk '{ print $2}' _starPS1RaDecRpsfRapZpsfZap_Clean)
+                            RA_nomad_refined=$(awk '{ print $1}' _starPS1RaDecRpsfRapZpsfZap_Clean)
+                            DEC_nomad_refined=$(awk '{ print $2}' _starPS1RaDecRpsfRapZpsfZap_Clean)
                             tail -n +3 _starPS1RaDecRpsfRapZpsfZap >> radec_stars.txt
                             sed -i 's/,/ /g' radec_stars.txt
                             echo "  - Creating FC                                    "
@@ -343,7 +343,7 @@ while read MASTER MASTER_RA MASTER_DEC
             rm -fr $ps1fits.csv
             if [ $ISSTAR == "false" ]; then
                 echo "    WARNING! No star matching in PS1!"
-                echo "    Using NOMAD coordinates. These may not be accurate"
+                echo "    Using NOMAD coordinates. These may be not accurate"
                 while read DISTANCE RA_nomad DEC_nomad Rmag_nomad; do
                     echo "    RA=$RA_nomad Dec=$DEC_nomad   "
                     echo "    with Rmag=$Rmag_nomad       "
