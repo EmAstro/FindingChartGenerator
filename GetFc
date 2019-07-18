@@ -446,7 +446,7 @@ while read MASTER MASTER_RA MASTER_DEC
         echo "                                                   "
 done < $INFILE
 
-if [ $OFFSET == "1" ]
+if [ $OFFSET == "true" ]
     then
         rm -fr OffsetStar.txt
         echo "#            TARGET        RA_TARGET      DEC_TARGET         RA_STAR        DEC_STAR rPS1_STAR   DELTA_RA  DELTA_DEC         PA" >> OffsetStar.txt
