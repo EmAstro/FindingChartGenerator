@@ -348,6 +348,7 @@ while read MASTER MASTER_RA MASTER_DEC
                     echo "    RA=$RA_nomad Dec=$DEC_nomad   "
                     echo "    with Rmag=$Rmag_nomad       "
                     echo "    and separated by $DISTANCE arcsec from the target"
+                    echo "$RA_nomad $DEC_nomad $Rmag_nomad 0.000 0.000 0.00" >> radec_stars.txt
                     echo "  - Creating FC    "
                     # Compass position
                     COMPASS_RA=$(echo "$MASTER_RA - (0.015/c(3.14/180.0*$MASTER_DEC))" | bc -l)
@@ -482,4 +483,4 @@ if [ $OFFSET == "true" ]
 fi
 rm -fr .file_col?
 rm -fr offsets.txt
-rm -fr radec_stars.txt
+# rm -fr radec_stars.txt
