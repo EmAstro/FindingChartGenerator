@@ -149,7 +149,7 @@ do
           ;;
       -maxm | --maxmag)
           if [ $# -ne 0 ]; then
-              MINMAGSTA="$2"
+              MAXMAGSTA="$2"
           fi
           shift 2
           ;;
