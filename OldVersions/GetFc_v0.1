@@ -5,13 +5,10 @@
 # Author
 AUTH="Ema"
 # Version
-VERS="0.2"
+VERS="0.1"
 # Date of the Version
-DVER="Aug. 2019"
+DVER="Jan. 2019"
 # List of updates
-# v0.2 - Aug 2019
-#        Added possibility to include a max magnitude
-#        for the offset star
 # v0.1 - Jan 2019
 #        Added possibility to include ESO PI and Program ID
 #        Zoom in ds9 is now a free parameter
@@ -48,10 +45,8 @@ display_help() {
     echo " -i, --infile    File Containing RA and Dec        "
     echo " -f, --filter    Select the filter for the FC      "
     echo " -o, --offset    Select if you need an offset star "
-    echo " -minm, --minmag min R-band magnitude of the offset"
-    echo "                 star                              "
-    echo " -maxm, --maxmag max R-band magnitude of the offset"
-    echo "                 star                              "
+    echo " -m, --magstar   R-band limit magnitude of the     "
+    echo "                 offset star                       "
     echo " -e, --eso       Add PI and program information to "
     echo "                 the FCs                           "
     echo " -fs, --fovsize  The code will drow a square box   "
@@ -116,8 +111,7 @@ clean_folder() {
 : ${INFILE:="radec.txt"}
 : ${FILTER:="z"}
 : ${OFFSET:="false"}
-: ${MINMAGSTA:="18.0"}
-: ${MAXMAGSTA:="10.0"}
+: ${MAGSTA:="18.0"}
 : ${ISESO:="false"}
 : ${ZOOM:="1.0"}
 : ${FOV:="120.0"}
@@ -141,15 +135,9 @@ do
           fi
           shift 2
           ;;
-      -minm | --minmag)
+      -m | --magstar)
           if [ $# -ne 0 ]; then
-              MINMAGSTA="$2"
-          fi
-          shift 2
-          ;;
-      -maxm | --maxmag)
-          if [ $# -ne 0 ]; then
-              MINMAGSTA="$2"
+              MAGSTA="$2"
           fi
           shift 2
           ;;
@@ -189,8 +177,7 @@ do
           echo " -i, --infile    File Containing RA and Dec        "
           echo " -f, --filter    Select the filter for the FC      "
           echo " -o, --offset    Select if you need an offset star "
-          echo " -minm, --minmag min R-band magnitude of the star  "
-          echo " -maxm, --maxmag max R-band magnitude of the star  "
+          echo " -m, --magstar   R-band limit magnitude of the star"
           echo " -e, --eso       Add PI and program info to the FC "
           echo " -fs, --fovsize  Specify FoV size in arcseconds    "
           echo " -z, --zoom      Zoom of the ds9 FC                "
@@ -281,7 +268,7 @@ while read MASTER MASTER_RA MASTER_DEC
             tail -n +2 $ps1fits.tsv > _fullNomadCatalogue
             cut -f5-6,16 _fullNomadCatalogue > _fullNomadCatalogueRaDecRmag
             while read RA_nomad DEC_nomad Rmag_nomad; do
-                if [[ $Rmag_nomad < $MINMAGSTA ]] && [[ $Rmag_nomad > $MAXMAGSTA ]]; then
+                if [[ $Rmag_nomad < $MAGSTA ]] && [[ $Rmag_nomad > 10 ]]; then
                     echo $MASTER_RA $MASTER_DEC $RA_nomad $DEC_nomad $Rmag_nomad >> _brightStarsRaObjDecObjRaStarDecStarRmagStar
                 fi
             done < _fullNomadCatalogueRaDecRmag
